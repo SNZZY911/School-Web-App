@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>User Management – School Web App</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div class="app-shell">
+  <div id="sidebar-mount"></div>
+
+  <div class="main-wrap">
+    <div class="topbar">
+      <button class="sidebar-toggle" onclick="toggleSidebar()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <nav class="breadcrumb">
+        <a href="dashboard.html">Dashboard</a>
+        <span class="breadcrumb-sep">/</span>
+        <span class="breadcrumb-current">User Management</span>
+      </nav>
+    </div>
+
+    <div class="page-content">
+      <div class="max-4xl">
+        <div class="flex items-center justify-between" style="margin-bottom:16px;flex-wrap:wrap;gap:8px">
+          <h1 class="page-title">User Management</h1>
+          <div class="flex gap-2">
+            <button class="btn btn-outline btn-sm" onclick="openCsvModal()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              Upload CSV
+            </button>
+            <button class="btn btn-primary btn-sm" onclick="openAddModal()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Add User
+            </button>
+          </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="card" style="margin-bottom:12px">
+          <div class="card-content">
+            <div class="filters-row">
+              <input class="input" id="searchInput" placeholder="Search name or USN…" oninput="renderTable()" />
+              <select class="input" id="roleFilter" onchange="renderTable()">
+                <option value="">All Roles</option>
+                <option value="admin">Admin</option>
+                <option value="moderator">Teacher</option>
+                <option value="student">Student</option>
+              </select>
+              <select class="input" id="classFilter" onchange="renderTable()">
+                <option value="">All Classes</option>
+                <option value="Grade 10-A">Grade 10-A</option>
+                <option value="Grade 10-B">Grade 10-B</option>
+                <option value="Grade 11-A">Grade 11-A</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Table -->
+        <div class="card">
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>USN</th>
+                  <th>Role</th>
+                  <th>Class</th>
+                  <th style="text-align:right">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="userTableBody"></tbody>
+            </table>
+          </div>
+          <div class="table-footer" id="tablePager"></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Add User Modal -->
+<div class="modal-backdrop hidden" id="addModal">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-header">
+      <div class="modal-title">Add User</div>
+    </div>
+    <form onsubmit="saveNewUser(event)">
+      <div class="form-row">
+        <div class="form-field">
+          <label class="form-label">First Name <span class="required">*</span></label>
+          <input class="input" id="addFirst" required />
+        </div>
+        <div class="form-field">
+          <label class="form-label">Last Name <span class="required">*</span></label>
+          <input class="input" id="addLast" required />
+        </div>
+      </div>
+      <div class="form-field">
+        <label class="form-label">USN <span class="required">*</span></label>
+        <input class="input" id="addUsn" placeholder="e.g. 2024-0011" required />
+      </div>
+      <div class="form-row">
+        <div class="form-field">
+          <label class="form-label">Role</label>
+          <select class="input" id="addRole">
+            <option value="student">Student</option>
+            <option value="moderator">Teacher</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Class</label>
+          <select class="input" id="addClass">
+            <option value="Grade 10-A">Grade 10-A</option>
+            <option value="Grade 10-B">Grade 10-B</option>
+            <option value="Grade 11-A">Grade 11-A</option>
+          </select>
+        </div>
+      </div>
+      <div id="addError" class="hidden alert alert-error" style="margin-bottom:8px"></div>
+      <div class="flex gap-2 justify-end" style="margin-top:4px">
+        <button type="button" class="btn btn-outline" onclick="closeAddModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Add User</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Change Role Modal -->
+<div class="modal-backdrop hidden" id="roleModal">
+  <div class="modal" style="max-width:340px">
+    <div class="modal-header">
+      <div class="modal-title">Change Role</div>
+      <div class="modal-desc" id="roleModalSub"></div>
+    </div>
+    <div class="form-field">
+      <label class="form-label">New Role</label>
+      <select class="input" id="roleSelect">
+        <option value="student">Student</option>
+        <option value="moderator">Teacher</option>
+        <option value="admin">Admin</option>
+      </select>
+    </div>
+    <div class="flex gap-2 justify-end" style="margin-top:8px">
+      <button class="btn btn-outline" onclick="closeRoleModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmRoleChange()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Reset Password Modal -->
+<div class="modal-backdrop hidden" id="resetModal">
+  <div class="modal" style="max-width:340px">
+    <div class="modal-header">
+      <div class="modal-title">Reset Password</div>
+      <div class="modal-desc" id="resetModalSub"></div>
+    </div>
+    <div class="form-field">
+      <label class="form-label">New Password <span class="required">*</span></label>
+      <input class="input" id="newPasswordInput" type="password" placeholder="Min. 8 characters" />
+    </div>
+    <div id="resetError" class="hidden" style="font-size:12px;color:var(--destructive);margin-bottom:8px"></div>
+    <div class="flex gap-2 justify-end" style="margin-top:8px">
+      <button class="btn btn-outline" onclick="closeResetModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmReset()">Reset</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete User Modal -->
+<div class="modal-backdrop hidden" id="deleteUserModal">
+  <div class="modal" style="max-width:340px">
+    <div class="modal-header">
+      <div class="modal-title">Delete User</div>
+      <div class="modal-desc" id="deleteUserSub"></div>
+    </div>
+    <div class="flex gap-2 justify-center" style="margin-top:4px">
+      <button class="btn btn-outline" onclick="closeDeleteUserModal()">Cancel</button>
+      <button class="btn btn-destructive" onclick="confirmDeleteUser()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- CSV Modal (cosmetic) -->
+<div class="modal-backdrop hidden" id="csvModal">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-header">
+      <div class="modal-title">Upload CSV</div>
+      <div class="modal-desc">Import multiple users at once via a CSV file.</div>
+    </div>
+    <div class="file-drop-zone" style="margin:12px 0">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:28px;height:28px;color:var(--muted-fg)"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      <p class="file-drop-text">Drop your CSV here or click to browse</p>
+      <p class="file-drop-sub">Required columns: first_name, last_name, usn, role, class</p>
+    </div>
+    <div class="flex gap-2 justify-end">
+      <button class="btn btn-outline" onclick="closeCsvModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="closeCsvModal()">Upload (Demo)</button>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+<script>
+requireAuth('admin');
+
+const SEED_USERS = [
+  { id:1,  name:'Alice Reyes',     usn:'2024-0001', role:'admin',     cls:'Grade 10-A', password:'admin123' },
+  { id:2,  name:'Maria Santos',    usn:'2024-0002', role:'moderator', cls:'Grade 10-A', password:'pass123' },
+  { id:3,  name:'Juan Dela Cruz',  usn:'2024-0003', role:'student',   cls:'Grade 10-A', password:'pass123' },
+  { id:4,  name:'Sofia Lim',       usn:'2024-0004', role:'student',   cls:'Grade 10-A', password:'pass123' },
+  { id:5,  name:'Carlos Rivera',   usn:'2024-0005', role:'student',   cls:'Grade 10-B', password:'pass123' },
+  { id:6,  name:'Bianca Cruz',     usn:'2024-0006', role:'student',   cls:'Grade 10-B', password:'pass123' },
+  { id:7,  name:'Marco Tan',       usn:'2024-0007', role:'moderator', cls:'Grade 10-B', password:'pass123' },
+  { id:8,  name:'Angela Garcia',   usn:'2024-0008', role:'student',   cls:'Grade 11-A', password:'pass123' },
+  { id:9,  name:'Miguel Torres',   usn:'2024-0009', role:'student',   cls:'Grade 11-A', password:'pass123' },
+  { id:10, name:'Patricia Flores', usn:'2024-0010', role:'student',   cls:'Grade 11-A', password:'pass123' },
+];
+
+function getUsers() {
+  const stored = localStorage.getItem('demo_users');
+  if (!stored) {
+    localStorage.setItem('demo_users', JSON.stringify(SEED_USERS));
+    return SEED_USERS;
+  }
+  return JSON.parse(stored);
+}
+function saveUsers(u) { localStorage.setItem('demo_users', JSON.stringify(u)); }
+
+const PAGE_SIZE = 8;
+let currentPage = 1;
+
+function getFiltered() {
+  const q     = document.getElementById('searchInput').value.toLowerCase();
+  const role  = document.getElementById('roleFilter').value;
+  const cls   = document.getElementById('classFilter').value;
+  return getUsers().filter(u => {
+    if (q   && !u.name.toLowerCase().includes(q) && !u.usn.toLowerCase().includes(q)) return false;
+    if (role && u.role !== role) return false;
+    if (cls  && u.cls  !== cls)  return false;
+    return true;
+  });
+}
+
+function renderTable() {
+  const filtered = getFiltered();
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  if (currentPage > totalPages) currentPage = totalPages;
+  const page = filtered.slice((currentPage-1)*PAGE_SIZE, currentPage*PAGE_SIZE);
+
+  const tbody = document.getElementById('userTableBody');
+  if (!page.length) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:32px;color:var(--muted-fg);font-size:13px">No users found.</td></tr>`;
+  } else {
+    tbody.innerHTML = page.map(u => {
+      const roleName  = { admin:'Admin', moderator:'Teacher', student:'Student' }[u.role] || u.role;
+      const roleClass = { admin:'badge-admin', moderator:'badge-mod', student:'badge-student' }[u.role] || '';
+      return `
+      <tr>
+        <td>
+          <div class="flex items-center gap-2">
+            <div class="avatar avatar-sm">${initials(u.name)}</div>
+            <span style="font-size:13px;font-weight:500">${esc(u.name)}</span>
+          </div>
+        </td>
+        <td style="font-size:12px;color:var(--muted-fg)">${esc(u.usn)}</td>
+        <td><span class="badge ${roleClass}">${esc(roleName)}</span></td>
+        <td style="font-size:13px">${esc(u.cls||'—')}</td>
+        <td>
+          <div class="flex gap-1 justify-end">
+            <button class="btn btn-outline btn-xs" onclick="openRoleModal(${u.id})">Change Role</button>
+            <button class="btn btn-outline btn-xs" onclick="openResetModal(${u.id})">Reset PW</button>
+            <button class="btn btn-destructive btn-xs" onclick="openDeleteUserModal(${u.id})">Delete</button>
+          </div>
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  // Pager
+  const pager = document.getElementById('tablePager');
+  pager.innerHTML = `
+    <span style="font-size:12px;color:var(--muted-fg)">${filtered.length} user${filtered.length!==1?'s':''}</span>
+    <div class="flex gap-1">
+      <button class="btn btn-outline btn-xs" ${currentPage<=1?'disabled':''} onclick="goPage(${currentPage-1})">Prev</button>
+      <span style="font-size:12px;align-self:center">Page ${currentPage} / ${totalPages}</span>
+      <button class="btn btn-outline btn-xs" ${currentPage>=totalPages?'disabled':''} onclick="goPage(${currentPage+1})">Next</button>
+    </div>`;
+}
+
+function goPage(p) { currentPage = p; renderTable(); }
+
+// ── Add User ────────────────────────────────────────────────
+function openAddModal()  { document.getElementById('addModal').classList.remove('hidden'); }
+function closeAddModal() { document.getElementById('addModal').classList.add('hidden'); document.getElementById('addError').classList.add('hidden'); }
+function saveNewUser(e) {
+  e.preventDefault();
+  const first = document.getElementById('addFirst').value.trim();
+  const last  = document.getElementById('addLast').value.trim();
+  const usn   = document.getElementById('addUsn').value.trim();
+  const role  = document.getElementById('addRole').value;
+  const cls   = document.getElementById('addClass').value;
+  const errEl = document.getElementById('addError');
+
+  const users = getUsers();
+  if (users.find(u => u.usn === usn)) {
+    errEl.textContent = 'A user with this USN already exists.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+  users.push({ id: Date.now(), name: first + ' ' + last, usn, role, cls, password: 'pass123' });
+  saveUsers(users);
+  closeAddModal();
+  renderTable();
+}
+
+// ── Change Role ──────────────────────────────────────────────
+let roleTargetId = null;
+function openRoleModal(id) {
+  roleTargetId = id;
+  const u = getUsers().find(x => x.id === id);
+  if (!u) return;
+  document.getElementById('roleModalSub').textContent = u.name;
+  document.getElementById('roleSelect').value = u.role;
+  document.getElementById('roleModal').classList.remove('hidden');
+}
+function closeRoleModal() { document.getElementById('roleModal').classList.add('hidden'); roleTargetId = null; }
+function confirmRoleChange() {
+  if (!roleTargetId) return;
+  const users = getUsers();
+  const u = users.find(x => x.id === roleTargetId);
+  if (u) u.role = document.getElementById('roleSelect').value;
+  saveUsers(users);
+  closeRoleModal();
+  renderTable();
+}
+
+// ── Reset Password ───────────────────────────────────────────
+let resetTargetId = null;
+function openResetModal(id) {
+  resetTargetId = id;
+  const u = getUsers().find(x => x.id === id);
+  if (!u) return;
+  document.getElementById('resetModalSub').textContent = u.name;
+  document.getElementById('newPasswordInput').value = '';
+  document.getElementById('resetError').classList.add('hidden');
+  document.getElementById('resetModal').classList.remove('hidden');
+}
+function closeResetModal() { document.getElementById('resetModal').classList.add('hidden'); resetTargetId = null; }
+function confirmReset() {
+  const pw = document.getElementById('newPasswordInput').value;
+  const errEl = document.getElementById('resetError');
+  if (!pw || pw.length < 6) { errEl.textContent = 'Password must be at least 6 characters.'; errEl.classList.remove('hidden'); return; }
+  const users = getUsers();
+  const u = users.find(x => x.id === resetTargetId);
+  if (u) u.password = pw;
+  saveUsers(users);
+  closeResetModal();
+}
+
+// ── Delete User ──────────────────────────────────────────────
+let deleteUserId = null;
+function openDeleteUserModal(id) {
+  deleteUserId = id;
+  const u = getUsers().find(x => x.id === id);
+  document.getElementById('deleteUserSub').textContent = u ? 'Delete ' + u.name + '? This cannot be undone.' : '';
+  document.getElementById('deleteUserModal').classList.remove('hidden');
+}
+function closeDeleteUserModal() { document.getElementById('deleteUserModal').classList.add('hidden'); deleteUserId = null; }
+function confirmDeleteUser() {
+  if (!deleteUserId) return;
+  const users = getUsers().filter(x => x.id !== deleteUserId);
+  saveUsers(users);
+  closeDeleteUserModal();
+  renderTable();
+}
+
+// ── CSV Modal ────────────────────────────────────────────────
+function openCsvModal()  { document.getElementById('csvModal').classList.remove('hidden'); }
+function closeCsvModal() { document.getElementById('csvModal').classList.add('hidden'); }
+
+renderTable();
+</script>
+</body>
+</html>

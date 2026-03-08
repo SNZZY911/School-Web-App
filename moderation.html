@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Moderation – School Web App</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div class="app-shell">
+  <div id="sidebar-mount"></div>
+
+  <div class="main-wrap">
+    <div class="topbar">
+      <button class="sidebar-toggle" onclick="toggleSidebar()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <nav class="breadcrumb">
+        <a href="dashboard.html">Dashboard</a>
+        <span class="breadcrumb-sep">/</span>
+        <span class="breadcrumb-current">Moderation</span>
+      </nav>
+    </div>
+
+    <div class="page-content">
+      <div class="moderation-layout">
+
+        <!-- Main content -->
+        <div class="flex flex-col gap-4">
+          <h1 class="page-title">Content Moderation</h1>
+
+          <!-- Tabs -->
+          <div class="tabs">
+            <button class="tab-btn active" id="tab-all"   onclick="switchTab('all')">All Posts</button>
+            <button class="tab-btn"         id="tab-sys"  onclick="switchTab('sys')">System Flagged</button>
+            <button class="tab-btn"         id="tab-man"  onclick="switchTab('man')">Manual Flagged</button>
+          </div>
+
+          <!-- Feed -->
+          <div id="modFeed"></div>
+        </div>
+
+        <!-- Keyword sidebar (admin only) -->
+        <div id="keywordPanel" class="hidden">
+          <div class="card sticky-top">
+            <div class="card-header">
+              <div class="card-title">Keyword Filters</div>
+              <div class="card-desc">Posts containing these words are automatically flagged.</div>
+            </div>
+            <div class="card-content">
+              <form onsubmit="addKeyword(event)" style="display:flex;gap:6px;margin-bottom:12px">
+                <input class="input" id="kwInput" placeholder="Add keyword…" style="flex:1" />
+                <button class="btn btn-primary btn-sm" type="submit">Add</button>
+              </form>
+              <div id="kwList"></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm action modal -->
+<div class="modal-backdrop hidden" id="confirmModal">
+  <div class="modal" style="max-width:340px">
+    <div class="modal-header">
+      <div class="modal-title" id="confirmTitle"></div>
+      <div class="modal-desc" id="confirmDesc"></div>
+    </div>
+    <div class="flex gap-2 justify-center" style="margin-top:4px">
+      <button class="btn btn-outline" onclick="closeConfirmModal()">Cancel</button>
+      <button class="btn btn-destructive" id="confirmOkBtn" onclick="runConfirm()">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+<script>
+requireAuth(['admin', 'moderator']);
+const user = getUser();
+const isAdmin = user.role === 'admin';
+
+// Show keyword panel for admin
+if (isAdmin) document.getElementById('keywordPanel').classList.remove('hidden');
+
+// ── Seed default keywords ───────────────────────────────────
+const DEFAULT_KEYWORDS = ['spam', 'hate', 'bully', 'cheat', 'scam'];
+function getKeywords() {
+  const stored = localStorage.getItem('demo_keywords');
+  if (!stored) { localStorage.setItem('demo_keywords', JSON.stringify(DEFAULT_KEYWORDS)); return DEFAULT_KEYWORDS; }
+  return JSON.parse(stored);
+}
+function saveKeywords(k) { localStorage.setItem('demo_keywords', JSON.stringify(k)); }
+
+// ── Flag posts that match keywords ("system" flag) ──────────
+function autoFlag() {
+  const keywords = getKeywords();
+  const posts = JSON.parse(localStorage.getItem('demo_posts') || '[]');
+  let changed = false;
+  posts.forEach(p => {
+    if (p.status === 'deleted') return;
+    const lower = p.content.toLowerCase();
+    const hit   = keywords.some(k => lower.includes(k.toLowerCase()));
+    if (hit && p.status === 'approved' && !p.manual_flag) {
+      p.status = 'sys_flagged';
+      changed = true;
+    }
+  });
+  if (changed) localStorage.setItem('demo_posts', JSON.stringify(posts));
+}
+
+// ── Tab state ────────────────────────────────────────────────
+let activeTab = 'all';
+function switchTab(tab) {
+  activeTab = tab;
+  ['all','sys','man'].forEach(t => {
+    document.getElementById('tab-' + t).classList.toggle('active', t === tab);
+  });
+  renderFeed();
+}
+
+// ── Render feed ──────────────────────────────────────────────
+function getPosts() { return JSON.parse(localStorage.getItem('demo_posts') || '[]'); }
+function savePosts(p) { localStorage.setItem('demo_posts', JSON.stringify(p)); }
+
+function renderFeed() {
+  autoFlag();
+  let posts = getPosts().filter(p => p.status !== 'deleted');
+
+  if (activeTab === 'sys') posts = posts.filter(p => p.status === 'sys_flagged');
+  else if (activeTab === 'man') posts = posts.filter(p => p.manual_flag);
+  // 'all' shows everything except deleted
+
+  const feed = document.getElementById('modFeed');
+  if (!posts.length) {
+    feed.innerHTML = '<div style="text-align:center;padding:48px;color:var(--muted-fg);font-size:13px">No posts to review.</div>';
+    return;
+  }
+
+  feed.innerHTML = posts.map(post => {
+    const statusBadge = post.status === 'sys_flagged'
+      ? '<span class="badge badge-error">System Flagged</span>'
+      : post.manual_flag
+        ? '<span class="badge badge-warn">Manual Flagged</span>'
+        : post.status === 'approved'
+          ? '<span class="badge badge-success">Approved</span>'
+          : `<span class="badge">${esc(post.status)}</span>`;
+
+    return `
+    <div class="card" id="mp-${post.id}" style="margin-bottom:8px">
+      <div class="card-content">
+        <div class="post-header" style="margin-bottom:8px">
+          <div class="avatar avatar-md">${initials(post.author)}</div>
+          <div class="post-meta flex-1">
+            <span class="post-author">${esc(post.author)}</span>
+            <div class="flex items-center gap-2">
+              <span class="post-sub">${timeAgo(post.created_at)}</span>
+              <span class="post-sub">${esc(post.group || '—')}</span>
+              ${statusBadge}
+            </div>
+          </div>
+        </div>
+        <p style="font-size:13px;color:var(--fg);line-height:1.6;margin-bottom:12px">${esc(post.content)}</p>
+        <div class="flex gap-2 flex-wrap">
+          ${post.status !== 'approved' ? `<button class="btn btn-success btn-xs" onclick="approvePost(${post.id})">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px"><polyline points="20 6 9 17 4 12"/></svg> Approve
+          </button>` : ''}
+          ${!post.manual_flag ? `<button class="btn btn-warn btn-xs" onclick="flagPost(${post.id})">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg> Flag
+          </button>` : `<button class="btn btn-warn btn-xs" onclick="unflagPost(${post.id})">Unflag</button>` }
+          <button class="btn btn-destructive btn-xs" onclick="openConfirmDelete(${post.id})">
+            <svg viewBox="0 0 24 24" fill="currentColor" style="width:12px;height:12px"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg> Delete
+          </button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function approvePost(id) {
+  const posts = getPosts();
+  const p = posts.find(x => x.id === id);
+  if (p) { p.status = 'approved'; p.manual_flag = false; }
+  savePosts(posts);
+  renderFeed();
+}
+function flagPost(id) {
+  const posts = getPosts();
+  const p = posts.find(x => x.id === id);
+  if (p) p.manual_flag = true;
+  savePosts(posts);
+  renderFeed();
+}
+function unflagPost(id) {
+  const posts = getPosts();
+  const p = posts.find(x => x.id === id);
+  if (p) p.manual_flag = false;
+  savePosts(posts);
+  renderFeed();
+}
+
+// Confirm delete
+let confirmTarget = null;
+let confirmAction = null;
+function openConfirmDelete(id) {
+  const p = getPosts().find(x => x.id === id);
+  if (!p) return;
+  confirmTarget = id;
+  confirmAction = 'delete';
+  document.getElementById('confirmTitle').textContent = 'Delete Post';
+  document.getElementById('confirmDesc').textContent = 'This cannot be undone.';
+  document.getElementById('confirmModal').classList.remove('hidden');
+}
+function closeConfirmModal() {
+  document.getElementById('confirmModal').classList.add('hidden');
+  confirmTarget = null; confirmAction = null;
+}
+function runConfirm() {
+  if (confirmAction === 'delete' && confirmTarget) {
+    const posts = getPosts();
+    const p = posts.find(x => x.id === confirmTarget);
+    if (p) p.status = 'deleted';
+    savePosts(posts);
+  }
+  closeConfirmModal();
+  renderFeed();
+}
+
+// ── Keywords ────────────────────────────────────────────────
+function renderKeywords() {
+  const kws = getKeywords();
+  document.getElementById('kwList').innerHTML = kws.length
+    ? kws.map((k, i) => `
+        <div class="kw-chip">
+          <span>${esc(k)}</span>
+          <button onclick="removeKeyword(${i})" title="Remove">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>`).join('')
+    : '<p style="font-size:12px;color:var(--muted-fg)">No keywords set.</p>';
+}
+
+function addKeyword(e) {
+  e.preventDefault();
+  const kw = document.getElementById('kwInput').value.trim().toLowerCase();
+  if (!kw) return;
+  const kws = getKeywords();
+  if (!kws.includes(kw)) { kws.push(kw); saveKeywords(kws); }
+  document.getElementById('kwInput').value = '';
+  renderKeywords();
+  renderFeed(); // re-apply flags
+}
+function removeKeyword(idx) {
+  const kws = getKeywords();
+  kws.splice(idx, 1);
+  saveKeywords(kws);
+  renderKeywords();
+  renderFeed();
+}
+
+renderFeed();
+if (isAdmin) renderKeywords();
+</script>
+</body>
+</html>

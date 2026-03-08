@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Login – School Web App</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div class="auth-shell">
+  <div class="auth-card">
+
+    <!-- Logo + Title -->
+    <div class="auth-header">
+      <div class="auth-logo">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 3L1 9l4 2.18v6L12 21l7-3.82v-6l2-1.09V17h2V9L12 3zm6.82 6L12 12.72 5.18 9 12 5.28 18.82 9zM17 15.99l-5 2.73-5-2.73v-3.72L12 15l5-2.73v3.72z"/>
+        </svg>
+      </div>
+      <div>
+        <div class="auth-title">School Web App</div>
+        <div class="auth-desc">Sign in with your credentials</div>
+      </div>
+    </div>
+
+    <!-- Login Form -->
+    <form id="loginForm" class="flex flex-col gap-4" onsubmit="handleLogin(event)">
+      <div id="loginError" class="alert alert-error hidden">
+        Invalid USN or password. Try: <strong>admin / admin123</strong>, <strong>teacher / pass123</strong>, or <strong>student / pass123</strong>
+      </div>
+
+      <div class="input-group">
+        <label class="label" for="usn">USN / Username</label>
+        <input class="input" id="usn" type="text" placeholder="Enter your USN" autocomplete="username" required />
+      </div>
+
+      <div class="input-group">
+        <label class="label" for="password">Password</label>
+        <input class="input" id="password" type="password" placeholder="Password" autocomplete="current-password" required />
+      </div>
+
+      <div class="checkbox-row">
+        <input type="checkbox" id="remember" />
+        <label class="label" for="remember" style="cursor:pointer">Remember me</label>
+      </div>
+
+      <button class="btn btn-primary w-full" type="submit" style="margin-top:4px">
+        Login
+      </button>
+
+      <!-- Demo hint -->
+      <div style="background:var(--muted);border-radius:var(--radius);padding:10px 12px;font-size:12px;color:var(--muted-fg);text-align:center;line-height:1.6">
+        <strong style="color:var(--fg)">Demo accounts:</strong><br/>
+        admin / admin123 &nbsp;·&nbsp; teacher / pass123 &nbsp;·&nbsp; student / pass123
+      </div>
+    </form>
+
+  </div>
+</div>
+
+<script src="app.js"></script>
+<script>
+function handleLogin(e) {
+  e.preventDefault();
+  const usn = document.getElementById('usn').value.trim();
+  const pw  = document.getElementById('password').value;
+  const err = document.getElementById('loginError');
+
+  const accounts = {
+    'admin':   { password: 'admin123', name: 'Admin User',     role: 'admin',     grade: null,    section: null,    usn: 'ADMIN-001' },
+    'teacher': { password: 'pass123',  name: 'Mrs. Santos',    role: 'moderator', grade: 'Grade 10', section: 'A',  usn: 'TCH-001' },
+    'student': { password: 'pass123',  name: 'Juan Dela Cruz', role: 'student',   grade: 'Grade 10', section: 'A',  usn: 'STU-2024-001' },
+  };
+
+  const match = accounts[usn.toLowerCase()];
+  if (!match || match.password !== pw) {
+    err.classList.remove('hidden');
+    return;
+  }
+  err.classList.add('hidden');
+
+  const user = { name: match.name, role: match.role, grade: match.grade, section: match.section, usn: match.usn };
+  localStorage.setItem('demo_user', JSON.stringify(user));
+  window.location.href = 'dashboard.html';
+}
+
+// Redirect if already logged in
+if (localStorage.getItem('demo_user')) {
+  window.location.href = 'dashboard.html';
+}
+</script>
+</body>
+</html>

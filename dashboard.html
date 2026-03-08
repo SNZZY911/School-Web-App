@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard – School Web App</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div class="app-shell">
+
+  <!-- Sidebar injected by app.js -->
+  <div id="sidebar-mount"></div>
+
+  <div class="main-wrap">
+    <!-- Topbar -->
+    <div class="topbar">
+      <button class="sidebar-toggle" onclick="toggleSidebar()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <nav class="breadcrumb">
+        <span class="breadcrumb-current">Dashboard</span>
+      </nav>
+    </div>
+
+    <div class="page-content">
+      <div class="max-2xl flex flex-col gap-4">
+
+        <!-- Tabs -->
+        <div class="tabs" id="dashTabs">
+          <button class="tab-btn active" data-tab="all"    onclick="switchTab('all')">All</button>
+          <button class="tab-btn"        data-tab="ann"    onclick="switchTab('ann')">Announcements</button>
+          <button class="tab-btn"        data-tab="groups" onclick="switchTab('groups')">My Groups</button>
+          <button class="tab-btn"        data-tab="mine"   onclick="switchTab('mine')">My Posts</button>
+        </div>
+
+        <!-- Announcement Banner (visible on 'all' tab) -->
+        <div id="annBanner" class="announcement-banner">
+          <div class="announcement-banner-title">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 18c.55 0 1-.45 1-1V7c0-.55-.45-1-1-1h-1V4c0-.55-.45-1-1-1H6c-.55 0-1 .45-1 1v2H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h1v2h14v-2h1zm-3-12v10H7V6h10zm-6 8H9v-2h2v2zm0-4H9V8h2v2zm4 4h-2v-2h2v2zm0-4h-2V8h2v2z"/></svg>
+            Announcements
+          </div>
+          <div id="annList"></div>
+        </div>
+
+        <!-- Posts Feed -->
+        <div id="postsFeed"></div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Post Confirm Modal -->
+<div class="modal-backdrop hidden" id="deleteModal">
+  <div class="modal" style="max-width:360px">
+    <div class="modal-header">
+      <div class="modal-title">Delete Post</div>
+      <div class="modal-desc">This action cannot be undone.</div>
+    </div>
+    <div class="flex gap-2 justify-center" style="margin-top:4px">
+      <button class="btn btn-outline" onclick="closeDeleteModal()">Cancel</button>
+      <button class="btn btn-destructive" onclick="confirmDelete()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+<script>
+requireAuth();
+
+let activeTab = 'all';
+let deleteTargetId = null;
+const user = getUser();
+
+// ── Seed demo data ───────────────────────────────────────────
+function seedPosts() {
+  if (!localStorage.getItem('demo_posts')) {
+    const posts = [
+      { id: 1, user_id: 'admin', author: 'Admin User', role: 'admin',   group: 'Grade 10-A – Math',   content: 'Welcome everyone to the new school year! Please read the student handbook posted on the bulletin board.',          is_announcement: true,  status:'published', likes:3, liked_by:[], comments:[ {id:1, author:'Juan Dela Cruz', text:'Thank you!'}, {id:2, author:'Maria Reyes', text:'Noted, thank you!'} ], created_at: ago(0,30) },
+      { id: 2, user_id: 'teacher', author: 'Mrs. Santos', role: 'moderator', group: 'Grade 10-A – Science', content: 'Quiz tomorrow covering chapters 4-6. Make sure to review ionic bonding and covalent bonds.',                   is_announcement: false, status:'published', likes:5, liked_by:[], comments:[ {id:3, author:'Juan Dela Cruz', text:'Will there be an extra credit section?'} ], created_at: ago(1,15) },
+      { id: 3, user_id: 'student', author: 'Juan Dela Cruz', role: 'student', group: 'Grade 10-A – Math',content: 'Does anyone have notes from last Wednesday\'s lesson on quadratic equations? I was absent.',                  is_announcement: false, status:'published', likes:2, liked_by:[], comments:[], created_at: ago(2,45) },
+      { id: 4, user_id: 'teacher', author: 'Mrs. Santos', role: 'moderator', group: 'Grade 10-A – English',content: 'Reminder: Book report submissions are due this Friday. Submit via the class folder.',                      is_announcement: true,  status:'published', likes:4, liked_by:[], comments:[ {id:4, author:'Ana Lim', text:'What is the minimum page count?'} ], created_at: ago(3,0) },
+      { id: 5, user_id: 'student2', author: 'Maria Reyes', role: 'student', group: 'Grade 10-A – Science', content: 'I found a really helpful video on balancing chemical equations. Check YouTube for "ChemSimplified".',        is_announcement: false, status:'published', likes:7, liked_by:[], comments:[], created_at: ago(4,30) },
+      { id: 6, user_id: 'admin',   author: 'Admin User',   role: 'admin',  group: null,                   content: 'School holiday on March 15. No classes. Enjoy the long weekend!',                                          is_announcement: true,  status:'published', likes:12, liked_by:[], comments:[], created_at: ago(1,0) },
+    ];
+    localStorage.setItem('demo_posts', JSON.stringify(posts));
+  }
+}
+
+function ago(days, mins) {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  d.setMinutes(d.getMinutes() - mins);
+  return d.toISOString();
+}
+
+function getPosts() { return JSON.parse(localStorage.getItem('demo_posts') || '[]'); }
+function savePosts(p) { localStorage.setItem('demo_posts', JSON.stringify(p)); }
+
+// ── Tabs ─────────────────────────────────────────────────────
+function switchTab(tab) {
+  activeTab = tab;
+  document.querySelectorAll('#dashTabs .tab-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.tab === tab);
+  });
+  document.getElementById('annBanner').style.display = (tab === 'all') ? '' : 'none';
+  renderFeed();
+}
+
+// ── Render Feed ──────────────────────────────────────────────
+function renderFeed() {
+  const posts = getPosts().filter(p => p.status !== 'deleted');
+  let filtered;
+  if (activeTab === 'ann')    filtered = posts.filter(p => p.is_announcement);
+  else if (activeTab === 'mine') filtered = posts.filter(p => p.user_id === user.role || p.author === user.name);
+  else filtered = posts;
+
+  const feed = document.getElementById('postsFeed');
+  if (!filtered.length) {
+    feed.innerHTML = '<div style="text-align:center;padding:48px 0;color:var(--muted-fg);font-size:13px">No posts yet</div>';
+    return;
+  }
+  feed.innerHTML = filtered.map(renderPost).join('');
+
+  // Announcement banner
+  const anns = posts.filter(p => p.is_announcement);
+  const annList = document.getElementById('annList');
+  annList.innerHTML = anns.slice(0,3).map(a => `
+    <div class="announcement-item">
+      <div class="announcement-content">
+        <span class="announcement-dot">•</span>
+        <span class="font-medium text-sm">${esc(a.author)}</span>
+        <span class="text-muted">: ${esc(a.content.slice(0,60))}${a.content.length>60?'...':''}</span>
+      </div>
+      <span class="text-muted text-xs">${timeAgo(a.created_at)}</span>
+    </div>
+  `).join('');
+}
+
+function renderPost(post) {
+  const liked = post.liked_by?.includes(user.usn || user.name);
+  const canDelete = user.role === 'admin' || post.author === user.name;
+  return `
+  <div class="card post-card" id="post-${post.id}">
+    <div class="card-content">
+      <div class="post-header">
+        <div class="avatar avatar-lg">${initials(post.author)}</div>
+        <div class="post-meta">
+          <div class="flex items-center gap-2">
+            <span class="post-author">${esc(post.author)}</span>
+            ${post.role === 'admin'     ? '<span class="badge badge-default">Admin</span>' : ''}
+            ${post.role === 'moderator' ? '<span class="badge badge-secondary">Teacher</span>' : ''}
+          </div>
+          <div class="flex items-center gap-2">
+            ${post.group ? `<span class="post-sub">${esc(post.group)}</span>` : ''}
+            <span class="post-sub">${timeAgo(post.created_at)}</span>
+          </div>
+        </div>
+        ${post.is_announcement ? '<span class="badge badge-announcement"><svg style="width:11px;height:11px;fill:currentColor;margin-right:2px" viewBox="0 0 24 24"><path d="M18 11v-1c0-3.87-3.13-7-7-7S4 6.13 4 10v1H2v2h2v1c0 .95.25 1.84.62 2.66L3 19h2l1.28-1.28C7.28 18.51 8.57 19 10 19h4v-2h-4c-2.21 0-4-1.79-4-4v-3c0-2.21 1.79-4 4-4s4 1.79 4 4v3h2v1h2v-2h2v-2h-2z"/></svg>Announcement</span>' : ''}
+        ${canDelete ? `
+        <div class="dropdown-wrap">
+          <button class="btn btn-ghost btn-icon" onclick="toggleDropdown('dd-${post.id}')">
+            <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
+          </button>
+          <div class="dropdown-menu hidden" id="dd-${post.id}">
+            <button class="dropdown-item danger" onclick="openDeleteModal(${post.id})">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+              Delete Post
+            </button>
+          </div>
+        </div>` : ''}
+      </div>
+
+      <p class="post-body">${esc(post.content)}</p>
+
+      <div class="post-actions">
+        <button class="post-action-btn ${liked?'liked':''}" onclick="toggleLike(${post.id})">
+          <svg viewBox="0 0 24 24" fill="${liked?'currentColor':'none'}" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+          ${post.likes > 0 ? post.likes : ''}
+        </button>
+        <button class="post-action-btn" onclick="toggleComments(${post.id})">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          ${post.comments?.length || 0} Comments
+        </button>
+      </div>
+
+      <div class="comments-section hidden" id="comments-${post.id}">
+        ${(post.comments||[]).map(c => `
+          <div class="comment-item">
+            <div class="avatar avatar-sm">${initials(c.author)}</div>
+            <div class="comment-body">
+              <span class="comment-author">${esc(c.author)}</span>
+              <p class="comment-text">${esc(c.text)}</p>
+            </div>
+          </div>
+        `).join('')}
+        <form class="comment-form" onsubmit="addComment(event,${post.id})">
+          <input class="input" placeholder="Write a comment..." id="cInput-${post.id}" />
+          <button class="btn btn-primary btn-sm" type="submit">Post</button>
+        </form>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ── Interactions ─────────────────────────────────────────────
+function toggleLike(id) {
+  const posts = getPosts();
+  const p = posts.find(x => x.id === id);
+  if (!p) return;
+  const key = user.usn || user.name;
+  if (!p.liked_by) p.liked_by = [];
+  if (p.liked_by.includes(key)) {
+    p.liked_by = p.liked_by.filter(x => x !== key);
+    p.likes = Math.max(0, p.likes - 1);
+  } else {
+    p.liked_by.push(key);
+    p.likes++;
+  }
+  savePosts(posts);
+  renderFeed();
+}
+
+function toggleComments(id) {
+  const el = document.getElementById('comments-' + id);
+  el && el.classList.toggle('hidden');
+}
+
+function addComment(e, id) {
+  e.preventDefault();
+  const input = document.getElementById('cInput-' + id);
+  const text = input.value.trim();
+  if (!text) return;
+  const posts = getPosts();
+  const p = posts.find(x => x.id === id);
+  if (!p) return;
+  if (!p.comments) p.comments = [];
+  p.comments.push({ id: Date.now(), author: user.name, text });
+  savePosts(posts);
+  input.value = '';
+  renderFeed();
+  // Re-show comments after re-render
+  const el = document.getElementById('comments-' + id);
+  el && el.classList.remove('hidden');
+}
+
+function openDeleteModal(id) {
+  deleteTargetId = id;
+  document.getElementById('deleteModal').classList.remove('hidden');
+  closeAllDropdowns();
+}
+function closeDeleteModal() {
+  deleteTargetId = null;
+  document.getElementById('deleteModal').classList.add('hidden');
+}
+function confirmDelete() {
+  if (!deleteTargetId) return;
+  const posts = getPosts();
+  const p = posts.find(x => x.id === deleteTargetId);
+  if (p) p.status = 'deleted';
+  savePosts(posts);
+  closeDeleteModal();
+  renderFeed();
+}
+
+// ── Init ─────────────────────────────────────────────────────
+seedPosts();
+renderFeed();
+</script>
+</body>
+</html>

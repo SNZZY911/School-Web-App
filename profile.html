@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Profile – School Web App</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div class="app-shell">
+  <div id="sidebar-mount"></div>
+
+  <div class="main-wrap">
+    <div class="topbar">
+      <button class="sidebar-toggle" onclick="toggleSidebar()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <nav class="breadcrumb">
+        <a href="dashboard.html">Dashboard</a>
+        <span class="breadcrumb-sep">/</span>
+        <span class="breadcrumb-current">Profile</span>
+      </nav>
+    </div>
+
+    <div class="page-content">
+      <div class="max-2xl profile-layout">
+
+        <!-- Profile Card (left) -->
+        <div>
+          <div class="card">
+            <div class="card-content" style="text-align:center">
+              <div class="profile-avatar-wrap">
+                <div class="avatar avatar-xl" id="avatarEl"></div>
+                <button class="btn btn-outline btn-sm photo-btn">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                  Change Photo
+                </button>
+              </div>
+              <div id="profileName" class="profile-name"></div>
+              <div id="profileBadge" style="margin-top:4px"></div>
+              <div id="profileMeta" class="profile-meta" style="margin-top:10px"></div>
+            </div>
+          </div>
+
+          <!-- Account settings card -->
+          <div class="card" style="margin-top:12px">
+            <div class="card-header">
+              <div class="card-title">Account Settings</div>
+            </div>
+            <div class="card-content">
+              <form id="accountForm" onsubmit="saveAccount(event)">
+                <div class="form-field">
+                  <label class="form-label">Name</label>
+                  <input class="input" id="accName" type="text" required />
+                </div>
+                <div class="form-field">
+                  <label class="form-label">Current Password</label>
+                  <input class="input" id="accCurrentPw" type="password" placeholder="Leave blank to keep current" />
+                </div>
+                <div class="form-field">
+                  <label class="form-label">New Password</label>
+                  <input class="input" id="accNewPw" type="password" placeholder="New password" />
+                </div>
+                <div id="accountMsg" class="hidden" style="font-size:12px;margin-bottom:8px"></div>
+                <button class="btn btn-primary btn-sm w-full" type="submit">Save Changes</button>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right column -->
+        <div class="flex flex-col gap-4">
+
+          <!-- Emergency contact -->
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Emergency Contact</div>
+              <div class="card-desc">This information is visible only to school admins.</div>
+            </div>
+            <div class="card-content">
+              <form id="contactForm" onsubmit="saveContact(event)">
+                <div class="form-field">
+                  <label class="form-label">Contact Name</label>
+                  <input class="input" id="contactName" placeholder="Full name" />
+                </div>
+                <div class="form-field">
+                  <label class="form-label">Relationship</label>
+                  <select class="input" id="contactRel">
+                    <option value="">Select…</option>
+                    <option>Parent</option>
+                    <option>Guardian</option>
+                    <option>Sibling</option>
+                    <option>Relative</option>
+                    <option>Other</option>
+                  </select>
+                </div>
+                <div class="form-row">
+                  <div class="form-field">
+                    <label class="form-label">Email</label>
+                    <input class="input" id="contactEmail" type="email" placeholder="email@example.com" />
+                  </div>
+                  <div class="form-field">
+                    <label class="form-label">Phone</label>
+                    <input class="input" id="contactPhone" placeholder="+63 9XX XXX XXXX" />
+                  </div>
+                </div>
+                <div class="form-field">
+                  <label class="form-label">Address</label>
+                  <input class="input" id="contactAddress" placeholder="Street, Barangay, City" />
+                </div>
+                <div id="contactMsg" class="hidden" style="font-size:12px;margin-bottom:8px"></div>
+                <button class="btn btn-primary btn-sm" type="submit">Save Contact</button>
+              </form>
+            </div>
+          </div>
+
+          <!-- My recent posts -->
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">My Recent Posts</div>
+            </div>
+            <div class="card-content" id="myPosts"></div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+<script>
+requireAuth();
+const user = getUser();
+
+function getContact() { return JSON.parse(localStorage.getItem('demo_contact_' + user.usn) || '{}'); }
+function saveContactData(d) { localStorage.setItem('demo_contact_' + user.usn, JSON.stringify(d)); }
+
+// Render profile card
+const roleBadge = { admin:'Admin', moderator:'Teacher', student:'Student' }[user.role] || user.role;
+const roleClass  = { admin:'badge-admin', moderator:'badge-mod', student:'badge-student' }[user.role] || '';
+document.getElementById('avatarEl').textContent = initials(user.name);
+document.getElementById('profileName').textContent = user.name;
+document.getElementById('profileBadge').innerHTML = `<span class="badge ${roleClass}">${esc(roleBadge)}</span>`;
+document.getElementById('profileMeta').innerHTML = `
+  <div style="font-size:12px;color:var(--muted-fg);display:flex;flex-direction:column;gap:4px;align-items:center">
+    <span>USN: <strong>${esc(user.usn || '—')}</strong></span>
+    ${user.grade ? `<span>${esc(user.grade)} • Section ${esc(user.section)}</span>` : ''}
+  </div>`;
+
+// Account form
+document.getElementById('accName').value = user.name;
+
+function saveAccount(e) {
+  e.preventDefault();
+  const name = document.getElementById('accName').value.trim();
+  if (!name) return;
+  const msgEl = document.getElementById('accountMsg');
+
+  const updated = { ...user, name };
+  localStorage.setItem('demo_user', JSON.stringify(updated));
+  msgEl.textContent = 'Changes saved!';
+  msgEl.className = 'text-success';
+  msgEl.classList.remove('hidden');
+  document.getElementById('avatarEl').textContent = initials(name);
+  document.getElementById('profileName').textContent = name;
+  setTimeout(() => msgEl.classList.add('hidden'), 2500);
+}
+
+// Contact form
+const contact = getContact();
+if (contact.name)    document.getElementById('contactName').value    = contact.name;
+if (contact.rel)     document.getElementById('contactRel').value     = contact.rel;
+if (contact.email)   document.getElementById('contactEmail').value   = contact.email;
+if (contact.phone)   document.getElementById('contactPhone').value   = contact.phone;
+if (contact.address) document.getElementById('contactAddress').value = contact.address;
+
+function saveContact(e) {
+  e.preventDefault();
+  const msgEl = document.getElementById('contactMsg');
+  saveContactData({
+    name:    document.getElementById('contactName').value.trim(),
+    rel:     document.getElementById('contactRel').value,
+    email:   document.getElementById('contactEmail').value.trim(),
+    phone:   document.getElementById('contactPhone').value.trim(),
+    address: document.getElementById('contactAddress').value.trim(),
+  });
+  msgEl.textContent = 'Emergency contact saved!';
+  msgEl.className = 'text-success';
+  msgEl.classList.remove('hidden');
+  setTimeout(() => msgEl.classList.add('hidden'), 2500);
+}
+
+// Recent posts
+function renderMyPosts() {
+  const posts = JSON.parse(localStorage.getItem('demo_posts') || '[]')
+    .filter(p => p.author === user.name && p.status !== 'deleted')
+    .slice(0, 5);
+  const el = document.getElementById('myPosts');
+  if (!posts.length) {
+    el.innerHTML = '<p style="font-size:13px;color:var(--muted-fg)">You have not posted anything yet.</p>';
+    return;
+  }
+  el.innerHTML = posts.map(p => `
+    <div style="padding:10px 0;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:4px;text-align:left">
+      <p style="font-size:13px;color:var(--fg);text-align:left">${esc(p.content.slice(0,120))}${p.content.length>120?'…':''}</p>
+      <div style="display:flex;gap:12px;font-size:11px;color:var(--muted-fg);justify-content:flex-start">
+        <span>${esc(p.group || '')}</span>
+        <span>${timeAgo(p.created_at)}</span>
+        <span>${p.likes} likes</span>
+        <span>${p.comments?.length||0} comments</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+renderMyPosts();
+</script>
+</body>
+</html>

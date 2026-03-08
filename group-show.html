@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Group – School Web App</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div class="app-shell">
+  <div id="sidebar-mount"></div>
+
+  <div class="main-wrap">
+    <div class="topbar">
+      <button class="sidebar-toggle" onclick="toggleSidebar()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <nav class="breadcrumb">
+        <a href="dashboard.html">Dashboard</a>
+        <span class="breadcrumb-sep">/</span>
+        <a href="groups.html">My Groups</a>
+        <span class="breadcrumb-sep">/</span>
+        <span class="breadcrumb-current" id="bcGroup">Group</span>
+      </nav>
+    </div>
+
+    <div class="page-content">
+      <div class="max-2xl flex flex-col gap-4">
+
+        <!-- Group Header -->
+        <div class="flex items-center gap-3">
+          <button class="btn btn-ghost btn-icon" onclick="history.back()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <div id="groupHeader" class="flex-1"></div>
+        </div>
+
+        <!-- Posts -->
+        <div id="groupFeed"></div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Post Modal -->
+<div class="modal-backdrop hidden" id="deleteModal">
+  <div class="modal" style="max-width:360px">
+    <div class="modal-header">
+      <div class="modal-title">Delete Post</div>
+      <div class="modal-desc">This action cannot be undone.</div>
+    </div>
+    <div class="flex gap-2 justify-center" style="margin-top:4px">
+      <button class="btn btn-outline" onclick="closeDeleteModal()">Cancel</button>
+      <button class="btn btn-destructive" onclick="confirmDelete()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+<script>
+requireAuth();
+
+const user = getUser();
+const groups = {
+  1: { id:1, name:'Grade 10-A – Mathematics', grade:'Grade 10', section:'A', moderator:'Mrs. Santos', members_count:32 },
+  2: { id:2, name:'Grade 10-A – Science',      grade:'Grade 10', section:'A', moderator:'Mr. Cruz',   members_count:31 },
+  3: { id:3, name:'Grade 10-A – English',      grade:'Grade 10', section:'A', moderator:'Mrs. Reyes', members_count:33 },
+  4: { id:4, name:'Grade 10-A – Filipino',     grade:'Grade 10', section:'A', moderator:'Mr. Garcia', members_count:33 },
+  5: { id:5, name:'Grade 10-A – TLE',          grade:'Grade 10', section:'A', moderator:'Mrs. Lim',   members_count:30 },
+};
+
+const params = new URLSearchParams(location.search);
+const gid = parseInt(params.get('id')) || 1;
+const group = groups[gid] || groups[1];
+
+document.title = group.name + ' – School Web App';
+document.getElementById('bcGroup').textContent = group.name;
+
+function getPosts() { return JSON.parse(localStorage.getItem('demo_posts') || '[]'); }
+function savePosts(p) { localStorage.setItem('demo_posts', JSON.stringify(p)); }
+
+function renderHeader() {
+  document.getElementById('groupHeader').innerHTML = `
+    <h2 style="font-size:16px;font-weight:600">${esc(group.name)}</h2>
+    <div class="flex items-center gap-3 text-xs text-muted" style="margin-top:2px">
+      <span>${esc(group.grade)} – ${esc(group.section)}</span>
+      <span class="flex items-center gap-1">
+        <svg style="width:12px;height:12px;fill:currentColor" viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+        ${group.members_count} members
+      </span>
+      <span>Teacher: <strong>${esc(group.moderator)}</strong></span>
+    </div>
+  `;
+}
+
+let deleteTargetId = null;
+
+function renderFeed() {
+  const allPosts = getPosts();
+  const posts = allPosts.filter(p => p.status !== 'deleted' && (p.group || '').includes(group.section));
+  const feed = document.getElementById('groupFeed');
+
+  if (!posts.length) {
+    feed.innerHTML = '<div style="text-align:center;padding:48px;color:var(--muted-fg);font-size:13px">No posts in this group yet.</div>';
+    return;
+  }
+
+  feed.innerHTML = posts.map(post => {
+    const liked = post.liked_by?.includes(user.usn || user.name);
+    const canDelete = user.role === 'admin' || post.author === user.name;
+    return `
+    <div class="card post-card" id="gpost-${post.id}">
+      <div class="card-content">
+        <div class="post-header">
+          <div class="avatar avatar-md">${initials(post.author)}</div>
+          <div class="post-meta flex-1">
+            <span class="post-author">${esc(post.author)}</span>
+            <span class="post-sub">${timeAgo(post.created_at)}</span>
+          </div>
+          ${canDelete ? `
+          <div class="dropdown-wrap">
+            <button class="btn btn-ghost btn-icon" onclick="toggleDropdown('gdd-${post.id}')">
+              <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
+            </button>
+            <div class="dropdown-menu hidden" id="gdd-${post.id}">
+              <button class="dropdown-item danger" onclick="openDeleteModal(${post.id})">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                Delete Post
+              </button>
+            </div>
+          </div>` : ''}
+        </div>
+
+        <p class="post-body">${esc(post.content)}</p>
+
+        <div class="post-actions">
+          <button class="post-action-btn ${liked?'liked':''}" onclick="toggleLike(${post.id})">
+            <svg viewBox="0 0 24 24" fill="${liked?'currentColor':'none'}" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+            ${post.likes > 0 ? post.likes : ''}
+          </button>
+          <button class="post-action-btn" onclick="toggleComments(${post.id})">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            ${post.comments?.length || 0} Comments
+          </button>
+        </div>
+
+        <div class="comments-section hidden" id="gc-${post.id}">
+          ${(post.comments||[]).map(c => `
+            <div class="comment-item">
+              <div class="avatar avatar-sm">${initials(c.author)}</div>
+              <div class="comment-body">
+                <span class="comment-author">${esc(c.author)}</span>
+                <p class="comment-text">${esc(c.text)}</p>
+              </div>
+            </div>
+          `).join('')}
+          <form class="comment-form" onsubmit="addComment(event,${post.id})">
+            <input class="input" placeholder="Write a comment..." id="gci-${post.id}" />
+            <button class="btn btn-primary btn-sm" type="submit">Post</button>
+          </form>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleLike(id) {
+  const posts = getPosts();
+  const p = posts.find(x => x.id === id);
+  if (!p) return;
+  const key = user.usn || user.name;
+  if (!p.liked_by) p.liked_by = [];
+  if (p.liked_by.includes(key)) { p.liked_by = p.liked_by.filter(x => x !== key); p.likes = Math.max(0,p.likes-1); }
+  else { p.liked_by.push(key); p.likes++; }
+  savePosts(posts); renderFeed();
+}
+
+function toggleComments(id) {
+  const el = document.getElementById('gc-' + id);
+  el && el.classList.toggle('hidden');
+}
+
+function addComment(e, id) {
+  e.preventDefault();
+  const input = document.getElementById('gci-' + id);
+  const text = input.value.trim();
+  if (!text) return;
+  const posts = getPosts();
+  const p = posts.find(x => x.id === id);
+  if (!p) return;
+  if (!p.comments) p.comments = [];
+  p.comments.push({ id: Date.now(), author: user.name, text });
+  savePosts(posts);
+  input.value = '';
+  renderFeed();
+  const el = document.getElementById('gc-' + id);
+  el && el.classList.remove('hidden');
+}
+
+function openDeleteModal(id) {
+  deleteTargetId = id;
+  document.getElementById('deleteModal').classList.remove('hidden');
+  closeAllDropdowns();
+}
+function closeDeleteModal() {
+  deleteTargetId = null;
+  document.getElementById('deleteModal').classList.add('hidden');
+}
+function confirmDelete() {
+  if (!deleteTargetId) return;
+  const posts = getPosts();
+  const p = posts.find(x => x.id === deleteTargetId);
+  if (p) p.status = 'deleted';
+  savePosts(posts);
+  closeDeleteModal();
+  renderFeed();
+}
+
+renderHeader();
+renderFeed();
+</script>
+</body>
+</html>

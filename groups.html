@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Groups – School Web App</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div class="app-shell">
+  <div id="sidebar-mount"></div>
+
+  <div class="main-wrap">
+    <div class="topbar">
+      <button class="sidebar-toggle" onclick="toggleSidebar()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <nav class="breadcrumb">
+        <a href="dashboard.html">Dashboard</a>
+        <span class="breadcrumb-sep">/</span>
+        <span class="breadcrumb-current">My Groups</span>
+      </nav>
+    </div>
+
+    <div class="page-content">
+      <div class="max-4xl">
+        <div class="page-heading mb-4">
+          <div class="page-heading-title">My Groups</div>
+          <div class="page-heading-desc">Subject groups you belong to</div>
+        </div>
+        <div class="group-grid" id="groupGrid"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+<script>
+requireAuth();
+
+function getGroups() {
+  return [
+    { id: 1, name: 'Grade 10-A – Mathematics',  grade: 'Grade 10', section: 'A', moderator: 'Mrs. Santos',  members_count: 32, last_post: ago(1,15) },
+    { id: 2, name: 'Grade 10-A – Science',       grade: 'Grade 10', section: 'A', moderator: 'Mr. Cruz',    members_count: 31, last_post: ago(0,40) },
+    { id: 3, name: 'Grade 10-A – English',       grade: 'Grade 10', section: 'A', moderator: 'Mrs. Reyes',  members_count: 33, last_post: ago(3,0)  },
+    { id: 4, name: 'Grade 10-A – Filipino',      grade: 'Grade 10', section: 'A', moderator: 'Mr. Garcia',  members_count: 33, last_post: null       },
+    { id: 5, name: 'Grade 10-A – TLE',           grade: 'Grade 10', section: 'A', moderator: 'Mrs. Lim',    members_count: 30, last_post: ago(2,0)  },
+  ];
+}
+
+function ago(days, mins) {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  d.setMinutes(d.getMinutes() - (mins||0));
+  return d.toISOString();
+}
+
+function renderGroups() {
+  const groups = getGroups();
+  const grid = document.getElementById('groupGrid');
+
+  if (!groups.length) {
+    grid.innerHTML = '<div style="text-align:center;padding:48px;color:var(--muted-fg);font-size:13px">You are not assigned to any groups yet.</div>';
+    return;
+  }
+
+  grid.innerHTML = groups.map(g => `
+    <div class="card" style="overflow:hidden">
+      <div class="group-card-accent"></div>
+      <div class="group-card-body">
+        <div>
+          <div class="group-card-name">${esc(g.name)}</div>
+          <div class="group-card-sub">${esc(g.grade)} – ${esc(g.section)}</div>
+        </div>
+        ${g.moderator ? `<div class="text-xs text-muted">Teacher: <span class="font-medium" style="color:var(--fg)">${esc(g.moderator)}</span></div>` : ''}
+        <div class="group-card-meta">
+          <span class="group-card-meta-item">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+            ${g.members_count} members
+          </span>
+          <span class="group-card-meta-item">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7z"/></svg>
+            ${g.last_post ? timeAgo(g.last_post) : 'No posts yet'}
+          </span>
+        </div>
+        <a href="group-show.html?id=${g.id}" class="btn btn-outline btn-sm w-full">View Group</a>
+      </div>
+    </div>
+  `).join('');
+}
+
+renderGroups();
+</script>
+</body>
+</html>
